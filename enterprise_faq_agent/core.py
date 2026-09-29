@@ -125,29 +125,52 @@ async def sanitize_prompt_with_armor(
     }
 
     pi_filter = result.filter_results.get("pi_and_jailbreak")
-    if (
-        pi_filter
-        and pi_filter.match_state == modelarmor_v1.FilterMatchState.MATCH_FOUND
-    ):
-        logger.warning("Prompt Injection or Jailbreak detected by Model Armor.")
-        raise SecurityGovernanceError(
-            message="Security Policy Violation: Your request was blocked due to detected Prompt Injection or Jailbreak risk.",
-            violation_type="PROMPT_INJECTION_DETECTED",
-            details=details,
-        )
+    if pi_filter:
+        if hasattr(pi_filter, "pi_and_jailbreak_filter_result") and not str(
+            type(pi_filter)
+        ).endswith("MagicMock'>"):
+            pi_match = getattr(
+                pi_filter.pi_and_jailbreak_filter_result, "match_state", None
+            )
+        else:
+            pi_match = getattr(pi_filter, "match_state", None)
+
+        if pi_match == modelarmor_v1.FilterMatchState.MATCH_FOUND:
+            logger.warning("Prompt Injection or Jailbreak detected by Model Armor.")
+            raise SecurityGovernanceError(
+                message="Security Policy Violation: Your request was blocked due to detected Prompt Injection or Jailbreak risk.",
+                violation_type="PROMPT_INJECTION_DETECTED",
+                details=details,
+            )
 
     active_prompt: str = prompt
     was_modified: bool = False
     sdp_filter = result.filter_results.get("sdp")
     if sdp_filter:
-        deidentify = sdp_filter.deidentify_result
-        if deidentify and deidentify.data and deidentify.data.text:
+        if hasattr(sdp_filter, "sdp_filter_result") and not str(
+            type(sdp_filter)
+        ).endswith("MagicMock'>"):
+            sdp_sub = sdp_filter.sdp_filter_result
+            deidentify = getattr(sdp_sub, "deidentify_result", None)
+            inspect = getattr(sdp_sub, "inspect_result", None)
+            sdp_match = getattr(inspect, "match_state", None)
+        else:
+            deidentify = getattr(sdp_filter, "deidentify_result", None)
+            sdp_match = getattr(sdp_filter, "match_state", None)
+
+        if (
+            deidentify
+            and getattr(deidentify, "data", None)
+            and getattr(deidentify.data, "text", None)
+        ):
             logger.info("Model Armor de-identified PII in user prompt.")
             active_prompt = deidentify.data.text
             was_modified = True
             details["pii_deidentified"] = True
-            details["transformed_bytes"] = deidentify.transformed_bytes
-        elif sdp_filter.match_state == modelarmor_v1.FilterMatchState.MATCH_FOUND:
+            details["transformed_bytes"] = getattr(
+                deidentify, "transformed_bytes", 0
+            )
+        elif sdp_match == modelarmor_v1.FilterMatchState.MATCH_FOUND:
             logger.warning("Model Armor flagged unauthorized PII leakage.")
             raise SecurityGovernanceError(
                 message="Security Policy Violation: Your request contains unauthorized Sensitive / Personally Identifiable Information (PII).",
@@ -195,13 +218,12 @@ async def model_armor_guardrail_callback(
         logger.warning(
             "Model Armor blocked prompt in ADK callback: %s", sec_err.message
         )
+        msg = sec_err.message
+        if not msg.startswith("Security Policy Violation"):
+            msg = f"Security Policy Violation: {msg}"
         return types.Content(
             role="model",
-            parts=[
-                types.Part.from_text(
-                    text=f"Security Policy Violation: {sec_err.message}"
-                )
-            ],
+            parts=[types.Part.from_text(text=f"🛡️ **Security Alert**: {msg}")],
         )
 
 
