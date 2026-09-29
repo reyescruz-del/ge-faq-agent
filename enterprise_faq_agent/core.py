@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import logging
 from typing import Optional, Union
 
@@ -37,14 +38,28 @@ class SecurityGovernanceError(Exception):
 
 _model_armor_client: Optional[modelarmor_v1.ModelArmorAsyncClient] = None
 _model_armor_endpoint: Optional[str] = None
+_model_armor_loop: Optional[asyncio.AbstractEventLoop] = None
 
 
 def _get_model_armor_client(
     location: str,
 ) -> Optional[modelarmor_v1.ModelArmorAsyncClient]:
-    global _model_armor_client, _model_armor_endpoint
+    global _model_armor_client, _model_armor_endpoint, _model_armor_loop
     api_endpoint: str = f"modelarmor.{location}.rep.googleapis.com"
-    if _model_armor_client is not None and _model_armor_endpoint == api_endpoint:
+
+    current_loop: Optional[asyncio.AbstractEventLoop] = None
+    try:
+        current_loop = asyncio.get_running_loop()
+    except RuntimeError:
+        pass
+
+    if (
+        _model_armor_client is not None
+        and _model_armor_endpoint == api_endpoint
+        and _model_armor_loop is not None
+        and not _model_armor_loop.is_closed()
+        and _model_armor_loop == current_loop
+    ):
         return _model_armor_client
 
     try:
@@ -53,6 +68,7 @@ def _get_model_armor_client(
             client_options=client_options
         )
         _model_armor_endpoint = api_endpoint
+        _model_armor_loop = current_loop
         logger.info(
             "ModelArmorAsyncClient initialized targeting endpoint: %s", api_endpoint
         )
