@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import logging
-from typing import Any, Optional
+from typing import Optional, Union
 
 from google.api_core.client_options import ClientOptions
 from google.api_core.exceptions import GoogleAPICallError
@@ -12,11 +12,14 @@ from google.adk.agents import Agent
 from google.adk.agents.callback_context import CallbackContext
 from google.adk.apps import App
 
-from .config import Settings, get_settings
-from .prompts import SYSTEM_INSTRUCTION
-from .tools import search_corporate_faq
+from enterprise_faq_agent.config import Settings, get_settings
+from enterprise_faq_agent.prompts import SYSTEM_INSTRUCTION
+from enterprise_faq_agent.tools import search_corporate_faq
 
-logger = logging.getLogger(__name__)
+logger: logging.Logger = logging.getLogger(__name__)
+
+SecurityDetailValue = Union[str, bool, int, float, None]
+SecurityDetails = dict[str, SecurityDetailValue]
 
 
 class SecurityGovernanceError(Exception):
@@ -24,29 +27,35 @@ class SecurityGovernanceError(Exception):
         self,
         message: str,
         violation_type: str,
-        details: Optional[dict[str, Any]] = None,
-    ):
+        details: Optional[SecurityDetails] = None,
+    ) -> None:
         super().__init__(message)
-        self.message = message
-        self.violation_type = violation_type
-        self.details = details or {}
+        self.message: str = message
+        self.violation_type: str = violation_type
+        self.details: SecurityDetails = details or {}
 
 
 _model_armor_client: Optional[modelarmor_v1.ModelArmorAsyncClient] = None
 _model_armor_endpoint: Optional[str] = None
 
 
-def _get_model_armor_client(location: str) -> Optional[modelarmor_v1.ModelArmorAsyncClient]:
+def _get_model_armor_client(
+    location: str,
+) -> Optional[modelarmor_v1.ModelArmorAsyncClient]:
     global _model_armor_client, _model_armor_endpoint
-    api_endpoint = f"modelarmor.{location}.rep.googleapis.com"
+    api_endpoint: str = f"modelarmor.{location}.rep.googleapis.com"
     if _model_armor_client is not None and _model_armor_endpoint == api_endpoint:
         return _model_armor_client
 
     try:
         client_options = ClientOptions(api_endpoint=api_endpoint)
-        _model_armor_client = modelarmor_v1.ModelArmorAsyncClient(client_options=client_options)
+        _model_armor_client = modelarmor_v1.ModelArmorAsyncClient(
+            client_options=client_options
+        )
         _model_armor_endpoint = api_endpoint
-        logger.info("ModelArmorAsyncClient initialized targeting endpoint: %s", api_endpoint)
+        logger.info(
+            "ModelArmorAsyncClient initialized targeting endpoint: %s", api_endpoint
+        )
         return _model_armor_client
     except Exception as exc:
         logger.warning("Failed to initialize ModelArmorAsyncClient: %s", exc)
@@ -58,14 +67,16 @@ async def sanitize_prompt_with_armor(
     *,
     settings: Optional[Settings] = None,
     client: Optional[modelarmor_v1.ModelArmorAsyncClient] = None,
-) -> tuple[str, bool, dict[str, Any]]:
-    cfg = settings or get_settings()
+) -> tuple[str, bool, SecurityDetails]:
+    cfg: Settings = settings or get_settings()
     if not cfg.model_armor_enabled:
         return prompt, False, {"model_armor_screened": False}
 
-    loc = cfg.model_armor_location or cfg.google_cloud_location or "us-central1"
-    armor_client = client or _get_model_armor_client(loc)
-    template_name = cfg.model_armor_template_name
+    loc: str = cfg.model_armor_location or cfg.google_cloud_location or "us-central1"
+    armor_client: Optional[modelarmor_v1.ModelArmorAsyncClient] = (
+        client or _get_model_armor_client(loc)
+    )
+    template_name: Optional[str] = cfg.model_armor_template_name
     if not template_name and cfg.google_cloud_project:
         template_name = (
             f"projects/{cfg.google_cloud_project}/locations/{loc}"
@@ -95,7 +106,9 @@ async def sanitize_prompt_with_armor(
             ) from api_err
         return prompt, False, {"model_armor_screened": False, "error": api_err.message}
     except Exception as exc:
-        logger.error("Unexpected error in Model Armor screening: %s", exc, exc_info=True)
+        logger.error(
+            "Unexpected error in Model Armor screening: %s", exc, exc_info=True
+        )
         if cfg.model_armor_fail_closed:
             raise SecurityGovernanceError(
                 message="Internal security screening error occurred.",
@@ -105,14 +118,17 @@ async def sanitize_prompt_with_armor(
         return prompt, False, {"model_armor_screened": False, "error": str(exc)}
 
     result = response.sanitization_result
-    details: dict[str, Any] = {
+    details: SecurityDetails = {
         "model_armor_screened": True,
         "filter_match_state": str(result.filter_match_state),
         "invocation_result": str(result.invocation_result),
     }
 
     pi_filter = result.filter_results.get("pi_and_jailbreak")
-    if pi_filter and pi_filter.match_state == modelarmor_v1.FilterMatchState.MATCH_FOUND:
+    if (
+        pi_filter
+        and pi_filter.match_state == modelarmor_v1.FilterMatchState.MATCH_FOUND
+    ):
         logger.warning("Prompt Injection or Jailbreak detected by Model Armor.")
         raise SecurityGovernanceError(
             message="Security Policy Violation: Your request was blocked due to detected Prompt Injection or Jailbreak risk.",
@@ -120,8 +136,8 @@ async def sanitize_prompt_with_armor(
             details=details,
         )
 
-    active_prompt = prompt
-    was_modified = False
+    active_prompt: str = prompt
+    was_modified: bool = False
     sdp_filter = result.filter_results.get("sdp")
     if sdp_filter:
         deidentify = sdp_filter.deidentify_result
@@ -153,19 +169,21 @@ async def sanitize_prompt_with_armor(
     return active_prompt, was_modified, details
 
 
-async def model_armor_guardrail_callback(ctx: CallbackContext) -> Optional[types.Content]:
-    settings = get_settings()
+async def model_armor_guardrail_callback(
+    ctx: CallbackContext,
+) -> Optional[types.Content]:
+    settings: Settings = get_settings()
     if not settings.model_armor_enabled:
         return None
 
     if not ctx.user_content or not ctx.user_content.parts:
         return None
 
-    user_text_parts = [p.text for p in ctx.user_content.parts if p.text]
+    user_text_parts: list[str] = [p.text for p in ctx.user_content.parts if p.text]
     if not user_text_parts:
         return None
 
-    raw_prompt = " ".join(user_text_parts)
+    raw_prompt: str = " ".join(user_text_parts)
     try:
         sanitized_prompt, was_modified, _ = await sanitize_prompt_with_armor(
             raw_prompt, settings=settings
@@ -174,7 +192,9 @@ async def model_armor_guardrail_callback(ctx: CallbackContext) -> Optional[types
             ctx.user_content.parts = [types.Part.from_text(text=sanitized_prompt)]
         return None
     except SecurityGovernanceError as sec_err:
-        logger.warning("Model Armor blocked prompt in ADK callback: %s", sec_err.message)
+        logger.warning(
+            "Model Armor blocked prompt in ADK callback: %s", sec_err.message
+        )
         return types.Content(
             role="model",
             parts=[
@@ -186,7 +206,7 @@ async def model_armor_guardrail_callback(ctx: CallbackContext) -> Optional[types
 
 
 def create_agent(settings: Optional[Settings] = None) -> Agent:
-    cfg = settings or get_settings()
+    cfg: Settings = settings or get_settings()
 
     return Agent(
         name="enterprise_faq_agent",

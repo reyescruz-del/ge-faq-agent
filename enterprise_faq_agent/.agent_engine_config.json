@@ -2,13 +2,19 @@
   "display_name": "enterprise-faq-agent",
   "description": "Enterprise Corporate HR & IT Assistant powered by Vertex AI Search Enterprise and Gemini 3.5 Flash",
   "env_vars": {
-    "GOOGLE_CLOUD_PROJECT": "your-project-id",
+    "GOOGLE_CLOUD_PROJECT": "gsd-appmod",
     "GOOGLE_CLOUD_LOCATION": "global",
-    "ENGINE_ID": "your-engine-id",
+    "ENGINE_ID": "appmod_1790208196600",
+    "DISCOVERY_ENGINE_PROJECT_ID": "gsd-appmod",
+    "DISCOVERY_ENGINE_LOCATION": "global",
+    "DISCOVERY_ENGINE_ID": "appmod_1790208196600",
+    "DISCOVERY_ENGINE_SERVING_CONFIG_ID": "default_search",
     "GEMINI_MODEL": "gemini-3.5-flash",
     "MODEL_ARMOR_ENABLED": "true",
     "MODEL_ARMOR_LOCATION": "us-central1",
     "MODEL_ARMOR_TEMPLATE_ID": "faq-security-template",
+    "MODEL_ARMOR_TEMPLATE_NAME": "projects/gsd-appmod/locations/us-central1/templates/faq-security-template",
+    "MODEL_ARMOR_FAIL_CLOSED": "true",
     "HR_SUPPORT_EMAIL": "hr-support@corp.internal",
     "IT_HELPDESK_EMAIL": "it-helpdesk@corp.internal"
   }

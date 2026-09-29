@@ -1,7 +1,9 @@
+"""Enterprise Corporate FAQ Agent package."""
+
 from __future__ import annotations
 
-from .config import Settings, get_settings
-from .core import (
+from enterprise_faq_agent.config import Settings, get_settings
+from enterprise_faq_agent.core import (
     SecurityGovernanceError,
     agent,
     app,
@@ -10,8 +12,8 @@ from .core import (
     root_agent,
     sanitize_prompt_with_armor,
 )
-from .prompts import SYSTEM_INSTRUCTION
-from .tools import search_corporate_faq
+from enterprise_faq_agent.prompts import SYSTEM_INSTRUCTION
+from enterprise_faq_agent.tools import search_corporate_faq
 
 __all__ = [
     "agent",

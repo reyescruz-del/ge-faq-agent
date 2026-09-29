@@ -157,3 +157,34 @@ async def test_native_adk_runner_execution():
 
         assert len(events) == 1
         assert events[0].content.parts[0].text == "Tax forms can be downloaded from the HR portal."
+
+
+@pytest.mark.asyncio
+async def test_model_armor_template_resolution(monkeypatch):
+    monkeypatch.setenv("GOOGLE_CLOUD_PROJECT", "test-corp-project")
+    monkeypatch.setenv("MODEL_ARMOR_ENABLED", "true")
+    monkeypatch.setenv("MODEL_ARMOR_LOCATION", "us-central1")
+    monkeypatch.setenv("MODEL_ARMOR_TEMPLATE_ID", "faq-security-template")
+    monkeypatch.delenv("MODEL_ARMOR_TEMPLATE_NAME", raising=False)
+
+    mock_armor_client = AsyncMock()
+    mock_response = MagicMock()
+    mock_result = MagicMock()
+    mock_result.filter_match_state = modelarmor_v1.FilterMatchState.NO_MATCH_FOUND
+    mock_result.invocation_result = modelarmor_v1.InvocationResult.SUCCESS
+    mock_result.filter_results = {}
+    mock_response.sanitization_result = mock_result
+    mock_armor_client.sanitize_user_prompt.return_value = mock_response
+
+    await sanitize_prompt_with_armor(
+        "Valid query",
+        client=mock_armor_client,
+    )
+
+    mock_armor_client.sanitize_user_prompt.assert_called_once()
+    call_args = mock_armor_client.sanitize_user_prompt.call_args[1]
+    req = call_args["request"]
+    assert (
+        req.name
+        == "projects/test-corp-project/locations/us-central1/templates/faq-security-template"
+    )

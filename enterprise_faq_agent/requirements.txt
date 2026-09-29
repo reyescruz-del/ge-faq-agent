@@ -3,5 +3,7 @@ google-genai==2.25.0
 google-cloud-aiplatform[adk,agent_engines]
 google-cloud-discoveryengine==0.20.4
 google-cloud-modelarmor==0.7.1
+pydantic>=2.7.0
+pydantic-settings>=2.0.0
 python-dotenv==1.2.3
 google-cloud-logging==3.16.3

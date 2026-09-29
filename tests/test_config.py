@@ -23,6 +23,8 @@ def test_default_settings(monkeypatch):
     assert settings.discovery_engine_id == "default-search-engine"
     assert settings.discovery_engine_serving_config_id == "default_search"
     assert settings.model_armor_enabled is True
+    assert settings.model_armor_location == "us-central1"
+    assert settings.model_armor_template_id == "faq-security-template"
     assert settings.model_armor_fail_closed is True
     assert settings.port == 8080
     assert settings.log_level == "INFO"
@@ -37,6 +39,8 @@ def test_custom_settings(monkeypatch):
     monkeypatch.setenv("DISCOVERY_ENGINE_ID", "custom-engine")
     monkeypatch.setenv("DISCOVERY_ENGINE_SERVING_CONFIG_ID", "custom_search")
     monkeypatch.setenv("MODEL_ARMOR_ENABLED", "false")
+    monkeypatch.setenv("MODEL_ARMOR_LOCATION", "us-east4")
+    monkeypatch.setenv("MODEL_ARMOR_TEMPLATE_ID", "custom-security-template")
     monkeypatch.setenv("MODEL_ARMOR_FAIL_CLOSED", "0")
     monkeypatch.setenv("PORT", "9090")
     monkeypatch.setenv("LOG_LEVEL", "DEBUG")
@@ -50,6 +54,8 @@ def test_custom_settings(monkeypatch):
     assert settings.discovery_engine_id == "custom-engine"
     assert settings.discovery_engine_serving_config_id == "custom_search"
     assert settings.model_armor_enabled is False
+    assert settings.model_armor_location == "us-east4"
+    assert settings.model_armor_template_id == "custom-security-template"
     assert settings.model_armor_fail_closed is False
     assert settings.port == 9090
     assert settings.log_level == "DEBUG"
